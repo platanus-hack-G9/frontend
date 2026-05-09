@@ -1,54 +1,8 @@
-import type {
-  CentroidEventsResponse,
-  Event,
-  EventDetail,
-  EventsPayload,
-  Filters,
-  GigaCentroidsResponse,
-} from "./types";
+import type { Event, EventDetail, EventsPayload, Filters } from "./types";
 
-/**
- * Adapter: derives the legacy `EventsPayload` shape from the new contract
- * (giga-centroids + centroid-events). Used by the event detail page to look up
- * an event by id and surface metadata. The home page no longer uses this.
- */
 export async function loadEvents(): Promise<EventsPayload> {
-  const centroidsRes = (await import("@/public/data/giga-centroids.json"))
-    .default as GigaCentroidsResponse;
-  const grouped = (await import("@/public/data/centroid-events.json"))
-    .default as Record<string, CentroidEventsResponse>;
-
-  const labelByCentroid = new Map(
-    centroidsRes.centroids.map((c) => [c.id, c.label]),
-  );
-
-  const events: Event[] = [];
-  for (const [centroidId, payload] of Object.entries(grouped)) {
-    const topicLabel = labelByCentroid.get(centroidId) ?? centroidId;
-    for (const e of payload.events) {
-      events.push({
-        id: e.id,
-        slug: e.slug,
-        title: e.title,
-        x: e.x,
-        y: e.y,
-        media_count: e.media_count,
-        divergence: e.divergence,
-        divergence_band: e.divergence_band,
-        trending_topics: [topicLabel],
-        media_sources: [],
-        keywords: e.keywords,
-        summary: e.summary,
-      });
-    }
-  }
-
-  return {
-    generated_at: centroidsRes.generated_at,
-    events,
-    trending_topics: centroidsRes.centroids.map((c) => c.label),
-    media_sources: [],
-  };
+  const data = (await import("@/public/data/events.json")).default;
+  return data as EventsPayload;
 }
 
 /**
