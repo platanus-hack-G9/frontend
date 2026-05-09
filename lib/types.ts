@@ -46,3 +46,47 @@ export interface Filters {
   topic: string | null;
   media: string[];
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Giga-centroid contract (see /contrato-bdd/contract.md)
+// ─────────────────────────────────────────────────────────────────────
+
+export type ColorBand = DivergenceBand;
+
+export interface GigaCentroid {
+  id: string;
+  label: string;
+  /** normalized [-1, 1] */
+  x: number;
+  /** normalized [-1, 1] */
+  y: number;
+  /** number of events in this topic (drives territory size) */
+  volume: number;
+  avg_divergence: number;
+  color_band: ColorBand;
+  summary?: string;
+}
+
+export interface GigaCentroidsResponse {
+  generated_at: string;
+  centroids: GigaCentroid[];
+}
+
+export interface CentroidEvent {
+  id: string;
+  slug: string;
+  title: string;
+  /** normalized [-1, 1], lies inside parent centroid territory */
+  x: number;
+  y: number;
+  media_count: number;
+  divergence: number;
+  divergence_band: DivergenceBand;
+  summary?: string;
+  keywords: string[];
+}
+
+export interface CentroidEventsResponse {
+  centroid_id: string;
+  events: CentroidEvent[];
+}

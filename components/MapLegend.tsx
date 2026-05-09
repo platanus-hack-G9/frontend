@@ -19,10 +19,11 @@ export function MapLegend() {
   return (
     <Popover>
       <PopoverTrigger
-        className="absolute top-3 right-3 z-10 p-2 rounded-full bg-[--color-bg-card]/70 backdrop-blur border border-[--color-border-card] text-[--color-text-secondary] hover:text-[--color-text-primary] hover:border-[--color-text-secondary] transition-colors"
+        className="absolute top-5 right-5 z-10 w-14 h-14 flex items-center justify-center rounded-full border border-[--color-border-card] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)] hover:scale-105 active:scale-95 transition-all"
+        style={{ backgroundColor: "#11141d", color: "#f8fafc" }}
         aria-label="Leyenda del mapa"
       >
-        <Info className="h-4 w-4" />
+        <Info className="h-6 w-6" strokeWidth={2.5} color="#f8fafc" />
       </PopoverTrigger>
       <PopoverContent
         align="end"

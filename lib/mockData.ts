@@ -1,19 +1,59 @@
-import type { Event, EventDetail, EventsPayload, Filters } from "./types";
+import type {
+  CentroidEventsResponse,
+  Event,
+  EventDetail,
+  EventsPayload,
+  Filters,
+  GigaCentroidsResponse,
+} from "./types";
 
 /**
- * Loads the events index. In production, replace this with a fetch to your
- * backend (e.g. `/api/events`) — keep the return type the same and the rest
- * of the app does not need to change.
+ * Adapter: derives the legacy `EventsPayload` shape from the new contract
+ * (giga-centroids + centroid-events). Used by the event detail page to look up
+ * an event by id and surface metadata. The home page no longer uses this.
  */
 export async function loadEvents(): Promise<EventsPayload> {
-  const data = (await import("@/public/data/events.json")).default;
-  return data as EventsPayload;
+  const centroidsRes = (await import("@/public/data/giga-centroids.json"))
+    .default as GigaCentroidsResponse;
+  const grouped = (await import("@/public/data/centroid-events.json"))
+    .default as Record<string, CentroidEventsResponse>;
+
+  const labelByCentroid = new Map(
+    centroidsRes.centroids.map((c) => [c.id, c.label]),
+  );
+
+  const events: Event[] = [];
+  for (const [centroidId, payload] of Object.entries(grouped)) {
+    const topicLabel = labelByCentroid.get(centroidId) ?? centroidId;
+    for (const e of payload.events) {
+      events.push({
+        id: e.id,
+        slug: e.slug,
+        title: e.title,
+        x: e.x,
+        y: e.y,
+        media_count: e.media_count,
+        divergence: e.divergence,
+        divergence_band: e.divergence_band,
+        trending_topics: [topicLabel],
+        media_sources: [],
+        keywords: e.keywords,
+        summary: e.summary,
+      });
+    }
+  }
+
+  return {
+    generated_at: centroidsRes.generated_at,
+    events,
+    trending_topics: centroidsRes.centroids.map((c) => c.label),
+    media_sources: [],
+  };
 }
 
 /**
- * Loads the per-event detail. Replace with `fetch(\`/api/events/${id}\`)` when
- * the backend lands. If a detail doesn't exist yet, returns a placeholder so
- * the UI doesn't crash.
+ * Loads the per-event detail. If a detail JSON doesn't exist for this event,
+ * returns a placeholder so the UI doesn't crash.
  */
 export async function loadEventDetail(id: string): Promise<EventDetail> {
   try {
@@ -30,7 +70,7 @@ export async function loadEventDetail(id: string): Promise<EventDetail> {
   }
 }
 
-/** Fuzzy match of a query against title + keywords (case-insensitive). */
+/** Fuzzy match against title + keywords (case-insensitive). Used by legacy filters. */
 function matchesSearch(event: Event, query: string): boolean {
   if (!query.trim()) return true;
   const q = query.toLowerCase();
@@ -43,10 +83,6 @@ export interface MediaWithCount {
   count: number;
 }
 
-/**
- * Returns the list of media outlets with how many events each one covered,
- * sorted by participation desc (ties broken alphabetically).
- */
 export function mediaWithCounts(
   allMedia: string[],
   events: Event[],
@@ -63,7 +99,6 @@ export function mediaWithCounts(
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
-/** AND-combination of all active filters. */
 export function filterEvents(events: Event[], filters: Filters): Event[] {
   return events.filter((e) => {
     if (!matchesSearch(e, filters.search)) return false;
@@ -71,7 +106,9 @@ export function filterEvents(events: Event[], filters: Filters): Event[] {
       return false;
     }
     if (filters.media.length > 0) {
-      const intersects = e.media_sources.some((m) => filters.media.includes(m));
+      const intersects = e.media_sources.some((m) =>
+        filters.media.includes(m),
+      );
       if (!intersects) return false;
     }
     return true;
