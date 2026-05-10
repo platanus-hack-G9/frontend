@@ -146,10 +146,17 @@ export function useCanvasRenderer({
     // Layer 1 — Voronoi territories
     const territoryAlpha = 0.06 * (oW * 0.55 + oT + oE * 0.55);
     
+    // Determine active cluster for transparency effect
+    const activeClusterId = hover?.kind === "centroid" ? hover.id : 
+                           (searchMatches.length > 0 && searchIndex >= 0 ? 
+                            searchMatches[searchIndex].centroidId : null);
+    
     if (territoryAlpha > 0.02) {
       for (let i = 0; i < centroidNodes.length; i++) {
         const node = centroidNodes[i];
         const isHover = hover?.kind === "centroid" && hover.id === node.centroid.id;
+        const isActiveCluster = activeClusterId === node.centroid.id;
+        const isOtherCluster = activeClusterId && !isActiveCluster;
         const fill = node.color;
 
         ctx.save();
@@ -163,10 +170,13 @@ export function useCanvasRenderer({
             else ctx.lineTo(px, py);
           }
           ctx.closePath();
-          ctx.globalAlpha = territoryAlpha * (isHover ? 0.45 : 0.22 + breath * 0.05);
+          
+          // Reduce opacity for non-active clusters when one is active
+          const clusterOpacityMultiplier = isOtherCluster ? 0.3 : 1;
+          ctx.globalAlpha = territoryAlpha * (isHover ? 0.45 : 0.22 + breath * 0.05) * clusterOpacityMultiplier;
           ctx.fillStyle = fill;
           ctx.fill();
-          ctx.globalAlpha = territoryAlpha * (isHover ? 0.95 : 0.7);
+          ctx.globalAlpha = territoryAlpha * (isHover ? 0.95 : 0.7) * clusterOpacityMultiplier;
           ctx.lineWidth = (isHover ? 2.2 : 1.2) / k;
           ctx.strokeStyle = fill;
           ctx.stroke();
@@ -188,8 +198,13 @@ export function useCanvasRenderer({
           
           if (dist < CONNECTION_DISTANCE) {
             const strength = 1 - (dist / CONNECTION_DISTANCE);
+            // Reduce connection opacity if neither cluster is active
+            const isNode1Active = activeClusterId === node1.centroid.id;
+            const isNode2Active = activeClusterId === node2.centroid.id;
+            const connectionOpacityMultiplier = (activeClusterId && !isNode1Active && !isNode2Active) ? 0.2 : 1;
+            
             ctx.save();
-            ctx.globalAlpha = strength * oC * 0.3;
+            ctx.globalAlpha = strength * oC * 0.3 * connectionOpacityMultiplier;
             ctx.lineWidth = strength * 2 / k;
             ctx.beginPath();
             ctx.moveTo(node1.cx, node1.cy);
@@ -206,8 +221,14 @@ export function useCanvasRenderer({
       for (const node of centroidNodes) {
         const isHover =
           hover?.kind === "centroid" && hover.id === node.centroid.id;
+        const isActiveCluster = activeClusterId === node.centroid.id;
+        const isOtherCluster = activeClusterId && !isActiveCluster;
+        
+        // Reduce opacity for non-active clusters
+        const centroidOpacityMultiplier = isOtherCluster ? 0.3 : 1;
+        
         ctx.save();
-        ctx.globalAlpha = oT;
+        ctx.globalAlpha = oT * centroidOpacityMultiplier;
 
         // Pulse ring (click affordance)
         const ringR = (node.r * 0.6 + 8 + pulse * 14) / k;

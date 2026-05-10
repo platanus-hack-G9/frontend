@@ -16,7 +16,9 @@ import { cn } from "@/lib/cn";
  */
 export function SearchBar() {
   const [expanded, setExpanded] = useState(false);
+  const [showNextHint, setShowNextHint] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const hintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const query = useMapStore((s) => s.query);
   const setQuery = useMapStore((s) => s.setQuery);
@@ -28,6 +30,8 @@ export function SearchBar() {
   const next = useMapStore((s) => s.nextMatch);
   const prev = useMapStore((s) => s.prevMatch);
 
+  const hasMatches = matches.length > 0;
+
   // Focus the input shortly after expansion so the width animation gets to play.
   useEffect(() => {
     if (!expanded) return;
@@ -35,15 +39,39 @@ export function SearchBar() {
     return () => clearTimeout(t);
   }, [expanded]);
 
+  // Show hint for next button after search results
+  useEffect(() => {
+    // Clear any existing timeout
+    if (hintTimeoutRef.current) {
+      clearTimeout(hintTimeoutRef.current);
+      hintTimeoutRef.current = null;
+    }
+
+    // Show hint after 3 seconds if there are multiple results and user hasn't navigated yet
+    if (hasMatches && matches.length > 1 && submitVersion > 0 && matchIndex === 0) {
+      hintTimeoutRef.current = setTimeout(() => {
+        setShowNextHint(true);
+        // Hide hint after 4 seconds
+        setTimeout(() => setShowNextHint(false), 4000);
+      }, 3000);
+    } else {
+      setShowNextHint(false);
+    }
+
+    return () => {
+      if (hintTimeoutRef.current) {
+        clearTimeout(hintTimeoutRef.current);
+      }
+    };
+  }, [hasMatches, matches.length, submitVersion, matchIndex]);
+  const noResults =
+    !hasMatches && query.trim().length > 0 && submitVersion > 0;
+  const current = hasMatches ? matches[matchIndex] : null;
+
   const handleClose = () => {
     clearSearch();
     setExpanded(false);
   };
-
-  const hasMatches = matches.length > 0;
-  const noResults =
-    !hasMatches && query.trim().length > 0 && submitVersion > 0;
-  const current = hasMatches ? matches[matchIndex] : null;
 
   const widthClass = !expanded
     ? "w-14"
@@ -54,7 +82,7 @@ export function SearchBar() {
   return (
     <div
       className={cn(
-        "absolute top-5 left-1/2 transform -translate-x-1/2 z-30 h-14 rounded-full overflow-hidden",
+        "absolute bottom-5 left-1/2 transform -translate-x-1/2 z-30 h-14 rounded-full overflow-hidden",
         "bg-gradient-to-br from-white/10 via-white/5 to-transparent border border-white/30",
         "backdrop-blur-xl shadow-[0_8px_32px_rgba(255,255,255,0.1),inset_0_1px_0_rgba(255,255,255,0.2)]",
         "transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
@@ -123,9 +151,12 @@ export function SearchBar() {
               type="button"
               onClick={next}
               aria-label="Resultado siguiente"
-              className="p-1.5 rounded-full text-[--color-text-secondary] hover:text-[--color-text-primary] hover:bg-white/10 transition-all duration-200"
+              className={cn(
+                "p-1.5 rounded-full text-[--color-text-secondary] hover:text-[--color-text-primary] hover:bg-white/10 transition-all duration-200",
+                showNextHint && "animate-pulse bg-white/20 shadow-lg shadow-white/30"
+              )}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className={cn("h-4 w-4", showNextHint && "text-white")} />
             </button>
           </div>
         )}
