@@ -22,7 +22,7 @@ export function WelcomeOverlay({ opacity }: WelcomeOverlayProps) {
         className="relative mt-5 md:mt-7 text-2xl md:text-4xl italic text-[--color-text-secondary] tracking-tight"
         style={{ fontFamily: "var(--font-fraunces)" }}
       >
-        Encontrá la verdad
+        Encontrá las verdades
       </p>
       <div className="relative mt-12 md:mt-16 flex flex-col items-center gap-3 text-[--color-text-primary]">
         <div className="relative">
