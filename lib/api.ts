@@ -116,20 +116,50 @@ export async function getEventDetail(idOrSlug: string): Promise<EventDetail> {
 
   if (source === "supabase") {
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    
+    // Get event details first
+    const { data: eventData, error: eventError } = await supabase
       .from("event_details")
       .select("verdad_consensuada, datos_aislados, contradicciones")
       .eq("event_id", idOrSlug)
       .maybeSingle();
-    if (error) throw error;
-    if (!data) {
+    
+    if (eventError) throw eventError;
+    
+    // Step 1: Get GUIDs for this event
+    const { data: guidsData, error: guidsError } = await supabase
+      .from("event_articles")
+      .select("guid")
+      .eq("event_id", idOrSlug);
+    
+    if (guidsError) throw guidsError;
+    
+    // Step 2: Get articles by GUIDs with media info
+    let articles: any[] = [];
+    if (guidsData && guidsData.length > 0) {
+      const guids = guidsData.map((row: any) => row.guid);
+      const { data: articlesData, error: articlesError } = await supabase
+        .from("articles")
+        .select("url, guid, medium_slug, title, summary, author, published_at, language, topics, media!inner(slug, name, feed_url, base_url)")
+        .in("guid", guids);
+      
+      if (articlesError) throw articlesError;
+      articles = (articlesData || []) as any[];
+    }
+    
+    if (!eventData) {
       return {
         verdad_consensuada: ["Aún no hay un análisis detallado para este evento."],
         datos_aislados: [],
         contradicciones: [],
+        articles: [],
       };
     }
-    return data as EventDetail;
+    
+    return {
+      ...eventData,
+      articles,
+    } as EventDetail;
   }
 
   if (source === "local") {
