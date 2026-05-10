@@ -39,8 +39,15 @@ export async function getGigaCentroids(): Promise<GigaCentroidsResponse> {
   const source = getDataSource();
 
   if (source === "supabase") {
+    // PostgREST sobre la tabla topic_centroids — sin RPC, no aporta nada
+    // envolver un SELECT en una función. Ojo: el order chain replica el
+    // ORDER BY del schema original (volume DESC, label ASC).
     const supabase = getSupabase();
-    const { data, error } = await supabase.rpc("get_giga_centroids");
+    const { data, error } = await supabase
+      .from("topic_centroids")
+      .select("id, label, x, y, volume, avg_divergence, color_band, summary")
+      .order("volume", { ascending: false })
+      .order("label", { ascending: true });
     if (error) throw error;
     return {
       generated_at: new Date().toISOString(),
@@ -69,10 +76,14 @@ export async function getCentroidEvents(
   const source = getDataSource();
 
   if (source === "supabase") {
+    // Idem: PostgREST + filter sobre la tabla, no necesitamos RPC.
     const supabase = getSupabase();
-    const { data, error } = await supabase.rpc("get_centroid_events", {
-      p_centroid_id: centroidId,
-    });
+    const { data, error } = await supabase
+      .from("events")
+      .select("id, slug, title, x, y, media_count, divergence, divergence_band, summary, keywords")
+      .eq("topic_centroid_id", centroidId)
+      .order("media_count", { ascending: false })
+      .order("published_at", { ascending: false });
     if (error) throw error;
     return { centroid_id: centroidId, events: (data ?? []) as CentroidEvent[] };
   }
