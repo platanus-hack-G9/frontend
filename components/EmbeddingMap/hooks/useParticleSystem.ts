@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const PARTICLE_COUNT = 150;
+const PARTICLE_COUNT = 300;
 
 interface Particle {
   x: number;

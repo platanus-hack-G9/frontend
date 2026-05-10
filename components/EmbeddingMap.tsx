@@ -14,7 +14,6 @@ import { useMapStore } from "@/lib/mapStore";
 import { MapLegend } from "./MapLegend";
 
 // Import modular components
-import { LayerSelector, type LayerType } from "./EmbeddingMap/LayerSelector";
 import { WelcomeOverlay } from "./EmbeddingMap/WelcomeOverlay";
 import { NodeTooltip, type TooltipData } from "./EmbeddingMap/NodeTooltip";
 import { ZoomControls } from "./EmbeddingMap/ZoomControls";
@@ -53,7 +52,6 @@ export function EmbeddingMap({ centroids, eventsByCentroid }: Props) {
   const [hover, setHover] = useState<HitResult | null>(null);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [tick, setTick] = useState(0);
-  const [layerType, setLayerType] = useState<LayerType>("voronoi");
   const initializedRef = useRef(false);
 
   // ── Map store (search & navigation) ─────────────────────────────────
@@ -231,7 +229,6 @@ export function EmbeddingMap({ centroids, eventsByCentroid }: Props) {
     tick,
     searchMatches,
     searchIndex,
-    layerType,
   });
 
   // ── Hit testing ────────────────────────────────────────────────────
@@ -366,7 +363,6 @@ export function EmbeddingMap({ centroids, eventsByCentroid }: Props) {
       ref={containerRef}
       className="relative w-full h-full overflow-hidden bg-[--color-bg-primary]"
     >
-      <LayerSelector currentLayer={layerType} onLayerChange={setLayerType} />
       <MapLegend />
       <ZoomControls
         onZoomIn={() => zoomBy(1.5)}

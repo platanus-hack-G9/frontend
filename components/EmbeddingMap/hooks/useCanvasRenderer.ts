@@ -77,8 +77,6 @@ interface Particle {
   life: number;
 }
 
-type LayerType = "voronoi" | "hex-grid" | "radial" | "none";
-
 interface CanvasRendererProps {
   canvasRef: React.RefObject<HTMLCanvasElement>;
   centroidNodes: CentroidNode[];
@@ -91,7 +89,6 @@ interface CanvasRendererProps {
   tick: number;
   searchMatches: { event: CentroidEvent; centroidId: string; centroidLabel: string }[];
   searchIndex: number;
-  layerType: LayerType;
 }
 
 export function useCanvasRenderer({
@@ -106,7 +103,6 @@ export function useCanvasRenderer({
   tick,
   searchMatches,
   searchIndex,
-  layerType,
 }: CanvasRendererProps) {
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -147,10 +143,10 @@ export function useCanvasRenderer({
       }
     }
 
-    // Layer 1 — Dynamic background layers based on selection
+    // Layer 1 — Voronoi territories
     const territoryAlpha = 0.06 * (oW * 0.55 + oT + oE * 0.55);
     
-    if (layerType !== "none" && territoryAlpha > 0.02) {
+    if (territoryAlpha > 0.02) {
       for (let i = 0; i < centroidNodes.length; i++) {
         const node = centroidNodes[i];
         const isHover = hover?.kind === "centroid" && hover.id === node.centroid.id;
@@ -158,79 +154,22 @@ export function useCanvasRenderer({
 
         ctx.save();
         
-        switch (layerType) {
-          case "voronoi":
-            const poly = voronoi?.cellPolygon(i);
-            if (poly) {
-              ctx.beginPath();
-              for (let j = 0; j < poly.length; j++) {
-                const [px, py] = poly[j];
-                if (j === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-              }
-              ctx.closePath();
-              ctx.globalAlpha = territoryAlpha * (isHover ? 0.45 : 0.22 + breath * 0.05);
-              ctx.fillStyle = fill;
-              ctx.fill();
-              ctx.globalAlpha = territoryAlpha * (isHover ? 0.95 : 0.7);
-              ctx.lineWidth = (isHover ? 2.2 : 1.2) / k;
-              ctx.strokeStyle = fill;
-              ctx.stroke();
-            }
-            break;
-            
-          case "hex-grid":
-            // Draw hexagonal territories
-            const hexSize = node.r * 2.5;
-            const hexHeight = hexSize * Math.sqrt(3);
-            const hexWidth = hexSize * 2;
-            
-            ctx.beginPath();
-            for (let j = 0; j < 6; j++) {
-              const angle = (Math.PI / 3) * j;
-              const hx = node.cx + hexSize * Math.cos(angle);
-              const hy = node.cy + hexSize * Math.sin(angle);
-              if (j === 0) ctx.moveTo(hx, hy);
-              else ctx.lineTo(hx, hy);
-            }
-            ctx.closePath();
-            
-            // Gradient fill for hexagon
-            const hexGradient = ctx.createRadialGradient(
-              node.cx, node.cy, 0,
-              node.cx, node.cy, hexSize
-            );
-            hexGradient.addColorStop(0, fill + "33");
-            hexGradient.addColorStop(0.7, fill + "1a");
-            hexGradient.addColorStop(1, fill + "0d");
-            
-            ctx.globalAlpha = territoryAlpha * (isHover ? 0.6 : 0.3 + breath * 0.1);
-            ctx.fillStyle = hexGradient;
-            ctx.fill();
-            ctx.globalAlpha = territoryAlpha * (isHover ? 0.9 : 0.5);
-            ctx.lineWidth = (isHover ? 2 : 1) / k;
-            ctx.strokeStyle = fill;
-            ctx.stroke();
-            break;
-            
-          case "radial":
-            // Draw radial gradient circles
-            const radialRadius = node.r * 2.8;
-            const radialGradient = ctx.createRadialGradient(
-              node.cx, node.cy, 0,
-              node.cx, node.cy, radialRadius
-            );
-            radialGradient.addColorStop(0, fill + "44");
-            radialGradient.addColorStop(0.5, fill + "22");
-            radialGradient.addColorStop(0.8, fill + "11");
-            radialGradient.addColorStop(1, fill + "00");
-            
-            ctx.beginPath();
-            ctx.arc(node.cx, node.cy, radialRadius, 0, Math.PI * 2);
-            ctx.globalAlpha = territoryAlpha * (isHover ? 0.4 : 0.25 + breath * 0.08);
-            ctx.fillStyle = radialGradient;
-            ctx.fill();
-            break;
+        const poly = voronoi?.cellPolygon(i);
+        if (poly) {
+          ctx.beginPath();
+          for (let j = 0; j < poly.length; j++) {
+            const [px, py] = poly[j];
+            if (j === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.globalAlpha = territoryAlpha * (isHover ? 0.45 : 0.22 + breath * 0.05);
+          ctx.fillStyle = fill;
+          ctx.fill();
+          ctx.globalAlpha = territoryAlpha * (isHover ? 0.95 : 0.7);
+          ctx.lineWidth = (isHover ? 2.2 : 1.2) / k;
+          ctx.strokeStyle = fill;
+          ctx.stroke();
         }
         
         ctx.restore();
@@ -442,6 +381,5 @@ export function useCanvasRenderer({
     tick,
     searchMatches,
     searchIndex,
-    layerType,
   ]);
 }
