@@ -52,6 +52,7 @@ export function EmbeddingMap({ centroids, eventsByCentroid }: Props) {
   const [hover, setHover] = useState<HitResult | null>(null);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [tick, setTick] = useState(0);
+  const [selectedCentroidId, setSelectedCentroidId] = useState<string | null>(null);
   const initializedRef = useRef(false);
 
   // ── Map store (search & navigation) ─────────────────────────────────
@@ -112,7 +113,13 @@ export function EmbeddingMap({ centroids, eventsByCentroid }: Props) {
     const zoom = d3
       .zoom<HTMLCanvasElement, unknown>()
       .scaleExtent([ZOOM_MIN, ZOOM_MAX])
-      .on("zoom", (event) => setTransform(event.transform));
+      .on("zoom", (event) => {
+        setTransform(event.transform);
+        // Clear selection if zooming out below threshold
+        if (event.transform.k < 2.0 && selectedCentroidId) {
+          setSelectedCentroidId(null);
+        }
+      });
 
     zoomBehaviorRef.current = zoom;
     const sel = d3.select(canvas);
@@ -229,6 +236,7 @@ export function EmbeddingMap({ centroids, eventsByCentroid }: Props) {
     tick,
     searchMatches,
     searchIndex,
+    selectedCentroidId,
   });
 
   // ── Hit testing ────────────────────────────────────────────────────
@@ -289,11 +297,16 @@ export function EmbeddingMap({ centroids, eventsByCentroid }: Props) {
     }
     if (hit?.kind === "centroid") {
       const node = centroidNodes.find((n) => n.centroid.id === hit.id);
-      if (node) zoomTo(node.cx, node.cy, 4.0, 800);
+      if (node) {
+        setSelectedCentroidId(hit.id);
+        zoomTo(node.cx, node.cy, 4.0, 800);
+      }
       return;
     }
     // Empty / welcome click → drill into topics view, biased toward click point
     if (k < 1.2) {
+      // Clear selection when clicking empty space
+      setSelectedCentroidId(null);
       const wx = (px - transform.x) / transform.k;
       const wy = (py - transform.y) / transform.k;
       // Bias toward center for predictability

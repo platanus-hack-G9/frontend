@@ -89,6 +89,7 @@ interface CanvasRendererProps {
   tick: number;
   searchMatches: { event: CentroidEvent; centroidId: string; centroidLabel: string }[];
   searchIndex: number;
+  selectedCentroidId: string | null;
 }
 
 export function useCanvasRenderer({
@@ -103,6 +104,7 @@ export function useCanvasRenderer({
   tick,
   searchMatches,
   searchIndex,
+  selectedCentroidId,
 }: CanvasRendererProps) {
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -304,9 +306,14 @@ export function useCanvasRenderer({
           hover?.kind === "event" && hover.id === node.event.id;
         const isMatch = matchIds.has(node.event.id);
         const isCurrentMatch = currentMatchId === node.event.id;
+        
+        // Check if this event belongs to the selected centroid
+        const isInSelectedCentroid = selectedCentroidId && node.centroidId === selectedCentroidId;
+        // Apply darkening effect if a centroid is selected and this event is not in it
+        const shouldDarken = selectedCentroidId && !isInSelectedCentroid;
 
         ctx.save();
-        ctx.globalAlpha = oE;
+        ctx.globalAlpha = shouldDarken ? oE * 0.15 : oE; // Darken non-selected events to 15% opacity
 
         // Search highlight ring
         if (isCurrentMatch) {
@@ -373,19 +380,21 @@ export function useCanvasRenderer({
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Enhanced white core with inner glow
-        ctx.fillStyle = "#ffffff";
-        ctx.globalAlpha = oE * 0.95;
-        ctx.beginPath();
-        ctx.arc(node.cx, node.cy, Math.max(r * 0.45, 1.5 / k), 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Inner bright spot
-        ctx.fillStyle = node.color;
-        ctx.globalAlpha = oE * 0.3;
-        ctx.beginPath();
-        ctx.arc(node.cx - r * 0.2, node.cy - r * 0.2, Math.max(r * 0.15, 0.8 / k), 0, Math.PI * 2);
-        ctx.fill();
+        // Enhanced white core with inner glow (only for non-darkened events)
+        if (!shouldDarken) {
+          ctx.fillStyle = "#ffffff";
+          ctx.globalAlpha = oE * 0.95;
+          ctx.beginPath();
+          ctx.arc(node.cx, node.cy, Math.max(r * 0.45, 1.5 / k), 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Inner bright spot
+          ctx.fillStyle = node.color;
+          ctx.globalAlpha = oE * 0.3;
+          ctx.beginPath();
+          ctx.arc(node.cx - r * 0.2, node.cy - r * 0.2, Math.max(r * 0.15, 0.8 / k), 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
       }
     }
