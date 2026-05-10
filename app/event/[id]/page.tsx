@@ -11,7 +11,15 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+// Permitir IDs/slugs no pre-conocidos (modo `local` y `supabase` los traen
+// del backend en runtime, no de los mocks).
+export const dynamicParams = true;
+
 export async function generateStaticParams() {
+  // En non-mock, los IDs no se conocen en build time → SSR/dynamic.
+  if ((process.env.NEXT_PUBLIC_DATA_SOURCE ?? "mock").toLowerCase() !== "mock") {
+    return [];
+  }
   const data = await loadEvents();
   return data.events.map((e) => ({ id: e.id }));
 }
@@ -19,7 +27,8 @@ export async function generateStaticParams() {
 export default async function EventPage({ params }: PageProps) {
   const { id } = await params;
   const data = await loadEvents();
-  const event = data.events.find((e) => e.id === id);
+  // El frontend hace push a /event/<id>; aceptamos también /event/<slug> por las dudas.
+  const event = data.events.find((e) => e.id === id || e.slug === id);
   if (!event) notFound();
 
   const detail = await loadEventDetail(id);

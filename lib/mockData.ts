@@ -13,19 +13,17 @@ import type {
  * an event by id and surface metadata. The home page no longer uses this.
  */
 export async function loadEvents(): Promise<EventsPayload> {
-  const centroidsRes = (await import("@/public/data/giga-centroids.json"))
-    .default as GigaCentroidsResponse;
-  const grouped = (await import("@/public/data/centroid-events.json"))
-    .default as Record<string, CentroidEventsResponse>;
+  // Respeta NEXT_PUBLIC_DATA_SOURCE: en mock carga JSONs estáticos, en local
+  // / supabase delega a loadAllCentroidsWithEvents() del api.ts.
+  const { loadAllCentroidsWithEvents } = await import("./api");
+  const { centroids, eventsByCentroid } = await loadAllCentroidsWithEvents();
 
-  const labelByCentroid = new Map(
-    centroidsRes.centroids.map((c) => [c.id, c.label]),
-  );
+  const labelByCentroid = new Map(centroids.map((c) => [c.id, c.label]));
 
   const events: Event[] = [];
-  for (const [centroidId, payload] of Object.entries(grouped)) {
+  for (const [centroidId, items] of eventsByCentroid.entries()) {
     const topicLabel = labelByCentroid.get(centroidId) ?? centroidId;
-    for (const e of payload.events) {
+    for (const e of items) {
       events.push({
         id: e.id,
         slug: e.slug,
@@ -44,30 +42,23 @@ export async function loadEvents(): Promise<EventsPayload> {
   }
 
   return {
-    generated_at: centroidsRes.generated_at,
+    generated_at: new Date().toISOString(),
     events,
-    trending_topics: centroidsRes.centroids.map((c) => c.label),
+    trending_topics: centroids.map((c) => c.label),
     media_sources: [],
   };
 }
 
 /**
- * Loads the per-event detail. If a detail JSON doesn't exist for this event,
- * returns a placeholder so the UI doesn't crash.
+ * Loads the per-event detail. Delega a `getEventDetail` del api.ts para que
+ * respete el toggle `NEXT_PUBLIC_DATA_SOURCE` (mock | local | supabase).
+ *
+ * Re-exportado por compatibilidad con consumers existentes
+ * (app/event/[id]/page.tsx).
  */
 export async function loadEventDetail(id: string): Promise<EventDetail> {
-  try {
-    const mod = await import(`@/public/data/event-${id}.json`);
-    return mod.default as EventDetail;
-  } catch {
-    return {
-      verdad_consensuada: [
-        "Aún no hay un análisis detallado disponible para este evento.",
-      ],
-      datos_aislados: [],
-      contradicciones: [],
-    };
-  }
+  const { getEventDetail } = await import("./api");
+  return getEventDetail(id);
 }
 
 /** Fuzzy match against title + keywords (case-insensitive). Used by legacy filters. */

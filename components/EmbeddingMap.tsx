@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import * as d3 from "d3";
 import { Plus, Minus, Locate } from "lucide-react";
 import type { CentroidEvent, GigaCentroid } from "@/lib/types";
-import { colorForBand, labelForBand } from "@/lib/colors";
+import { colorForBand, colorForDivergence, labelForBand } from "@/lib/colors";
 import { useMapStore } from "@/lib/mapStore";
 import { MapLegend } from "./MapLegend";
 
@@ -141,60 +141,122 @@ export function EmbeddingMap({ centroids, eventsByCentroid }: Props) {
   }, []);
 
   // ── Layout: pixel positions of centroids + events ───────────────────
-  const centroidNodes = useMemo<CentroidNode[]>(() => {
-    if (size.width === 0 || size.height === 0) return [];
-    const xScale = d3
-      .scaleLinear()
-      .domain([-1, 1])
-      .range([PADDING, size.width - PADDING]);
-    const yScale = d3
-      .scaleLinear()
-      .domain([-1, 1])
-      .range([size.height - PADDING, PADDING]);
-    const rScale = d3
-      .scaleSqrt()
-      .domain([1, 20])
-      .range([26, 64])
-      .clamp(true);
-    return centroids.map((c) => ({
-      centroid: c,
-      cx: xScale(c.x),
-      cy: yScale(c.y),
-      r: rScale(c.volume),
-      color: colorForBand(c.color_band),
-    }));
-  }, [centroids, size]);
+  // ── Cluster-bubble layout (d3-force) ────────────────────────────────────
+  // Decisión: las posiciones de events vienen del backend (UMAP), pero como
+  // los embeddings MiniLM no separan bien las categorías noticieras, en su
+  // lugar las posiciones se DETERMINAN POR LA CATEGORÍA del event:
+  //   - cada topic tiene un anchor distribuido en círculo
+  //   - cada event se atrae a su anchor de topic (cohesión intra-cluster)
+  //   - forceCollide entre events evita solapamiento
+  //   - forceManyBody empuja suavemente para que clusters no se aplasten
+  // Después de la simulación, el centroide del topic = mean de sus events.
+  const { centroidNodes, eventNodes } = useMemo<{
+    centroidNodes: CentroidNode[];
+    eventNodes: EventNode[];
+  }>(() => {
+    if (size.width === 0 || size.height === 0) return { centroidNodes: [], eventNodes: [] };
 
-  const eventNodes = useMemo<EventNode[]>(() => {
-    if (size.width === 0 || size.height === 0) return [];
-    const xScale = d3
-      .scaleLinear()
-      .domain([-1, 1])
-      .range([PADDING, size.width - PADDING]);
-    const yScale = d3
-      .scaleLinear()
-      .domain([-1, 1])
-      .range([size.height - PADDING, PADDING]);
-    const rScale = d3
+    const eventRScale = d3
       .scaleSqrt()
       .domain([1, 15])
       .range([7, 18])
       .clamp(true);
-    const out: EventNode[] = [];
+    const centroidRScale = d3
+      .scaleSqrt()
+      .domain([1, 20])
+      .range([26, 64])
+      .clamp(true);
+
+    // Anchors: un punto por topic, distribuidos en círculo alrededor del centro.
+    const cx = size.width / 2;
+    const cy = size.height / 2;
+    const ringRadius = Math.min(size.width, size.height) * 0.32;
+    const N = centroids.length;
+    const anchorByTopic = new Map<string, { x: number; y: number }>();
+    centroids.forEach((c, i) => {
+      const angle = (i / Math.max(N, 1)) * 2 * Math.PI - Math.PI / 2;
+      anchorByTopic.set(c.id, {
+        x: cx + ringRadius * Math.cos(angle),
+        y: cy + ringRadius * Math.sin(angle),
+      });
+    });
+
+    type SimEvent = d3.SimulationNodeDatum & {
+      event: CentroidEvent;
+      topicId: string;
+      r: number;
+      color: string;
+    };
+
+    const eventsSim: SimEvent[] = [];
     for (const [centroidId, events] of eventsByCentroid.entries()) {
+      const anchor = anchorByTopic.get(centroidId);
+      if (!anchor) continue;
       for (const e of events) {
-        out.push({
+        eventsSim.push({
           event: e,
-          centroidId,
-          cx: xScale(e.x),
-          cy: yScale(e.y),
-          r: rScale(Math.max(e.media_count, 1)),
-          color: colorForBand(e.divergence_band),
+          topicId: centroidId,
+          r: eventRScale(Math.max(e.media_count, 1)),
+          color: colorForDivergence(e.divergence ?? 0),
+          // Empezamos cerca del anchor con jitter para que la sim no diverja.
+          x: anchor.x + (Math.random() - 0.5) * 30,
+          y: anchor.y + (Math.random() - 0.5) * 30,
         });
       }
     }
-    return out;
-  }, [eventsByCentroid, size]);
+
+    if (!eventsSim.length) return { centroidNodes: [], eventNodes: [] };
+
+    const sim = d3
+      .forceSimulation<SimEvent>(eventsSim)
+      .force(
+        "x",
+        d3.forceX<SimEvent>((d) => anchorByTopic.get(d.topicId)?.x ?? cx).strength(0.35),
+      )
+      .force(
+        "y",
+        d3.forceY<SimEvent>((d) => anchorByTopic.get(d.topicId)?.y ?? cy).strength(0.35),
+      )
+      .force("charge", d3.forceManyBody<SimEvent>().strength(-25))
+      .force(
+        "collide",
+        d3.forceCollide<SimEvent>((d) => d.r + 3).strength(1).iterations(3),
+      )
+      .stop();
+
+    // ~300 ticks alcanzan para que se acomoden los clusters sin oscilar.
+    for (let i = 0; i < 300; i++) sim.tick();
+
+    const eventNodesOut: EventNode[] = eventsSim.map((s) => ({
+      event: s.event,
+      centroidId: s.topicId,
+      cx: s.x ?? 0,
+      cy: s.y ?? 0,
+      r: s.r,
+      color: s.color,
+    }));
+
+    // Centroid de cada topic = mean(x, y) de sus events tras la simulación.
+    const centroidNodesOut: CentroidNode[] = centroids.map((c) => {
+      const myEvents = eventNodesOut.filter((e) => e.centroidId === c.id);
+      const anchor = anchorByTopic.get(c.id) ?? { x: cx, y: cy };
+      const meanX = myEvents.length
+        ? myEvents.reduce((s, e) => s + e.cx, 0) / myEvents.length
+        : anchor.x;
+      const meanY = myEvents.length
+        ? myEvents.reduce((s, e) => s + e.cy, 0) / myEvents.length
+        : anchor.y;
+      return {
+        centroid: c,
+        cx: meanX,
+        cy: meanY,
+        r: centroidRScale(c.volume),
+        color: colorForDivergence(c.avg_divergence ?? 0),
+      };
+    });
+
+    return { centroidNodes: centroidNodesOut, eventNodes: eventNodesOut };
+  }, [centroids, eventsByCentroid, size]);
 
   // ── Voronoi tessellation in pixel space ─────────────────────────────
   const voronoi = useMemo(() => {
@@ -345,8 +407,9 @@ export function EmbeddingMap({ centroids, eventsByCentroid }: Props) {
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.k, transform.k);
 
-    // Layer 1 — Voronoi territories
-    const territoryAlpha = 0.42 * (oW * 0.55 + oT + oE * 0.55);
+    // Layer 1 — Voronoi territories (atenuado: el layout ahora es cluster-bubble,
+    // los territorios eran solo confusión visual. Dejamos un hint sutil.)
+    const territoryAlpha = 0.06 * (oW * 0.55 + oT + oE * 0.55);
     if (territoryAlpha > 0.02) {
       for (let i = 0; i < centroidNodes.length; i++) {
         const node = centroidNodes[i];
@@ -583,7 +646,7 @@ export function EmbeddingMap({ centroids, eventsByCentroid }: Props) {
       if (node) router.push(`/event/${node.event.id}`);
       return;
     }
-    if (hit?.kind === "centroid" && k >= 1.0) {
+    if (hit?.kind === "centroid") {
       const node = centroidNodes.find((n) => n.centroid.id === hit.id);
       if (node) zoomTo(node.cx, node.cy, 4.0, 800);
       return;
