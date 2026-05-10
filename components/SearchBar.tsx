@@ -54,14 +54,13 @@ export function SearchBar() {
   return (
     <div
       className={cn(
-        "absolute bottom-5 right-5 z-30 h-14 rounded-full overflow-hidden",
-        "bg-[--color-bg-elevated] border border-[--color-border-card]",
-        "shadow-[0_24px_60px_-12px_rgba(0,0,0,0.85)]",
+        "absolute top-5 left-1/2 transform -translate-x-1/2 z-30 h-14 rounded-full overflow-hidden",
+        "bg-gradient-to-br from-white/10 via-white/5 to-transparent border border-white/30",
+        "backdrop-blur-xl shadow-[0_8px_32px_rgba(255,255,255,0.1),inset_0_1px_0_rgba(255,255,255,0.2)]",
         "transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
         widthClass,
         !expanded && "animate-search-fab",
       )}
-      style={{ backgroundColor: "#11141d" }}
     >
       {/* Collapsed: full-area button */}
       <button
@@ -105,7 +104,7 @@ export function SearchBar() {
         />
 
         {hasMatches && current && (
-          <div className="flex items-center gap-1 shrink-0 pl-2 pr-1 border-l border-[--color-border-card]">
+          <div className="flex items-center gap-1 shrink-0 pl-2 pr-1 border-l border-white/30">
             <span
               className="text-[11px] font-mono text-[--color-text-muted] px-1 select-none"
               aria-live="polite"
@@ -116,7 +115,7 @@ export function SearchBar() {
               type="button"
               onClick={prev}
               aria-label="Resultado anterior"
-              className="p-1.5 rounded-full text-[--color-text-secondary] hover:text-[--color-text-primary] hover:bg-white/5 transition-colors"
+              className="p-1.5 rounded-full text-[--color-text-secondary] hover:text-[--color-text-primary] hover:bg-white/10 transition-all duration-200"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -124,7 +123,7 @@ export function SearchBar() {
               type="button"
               onClick={next}
               aria-label="Resultado siguiente"
-              className="p-1.5 rounded-full text-[--color-text-secondary] hover:text-[--color-text-primary] hover:bg-white/5 transition-colors"
+              className="p-1.5 rounded-full text-[--color-text-secondary] hover:text-[--color-text-primary] hover:bg-white/10 transition-all duration-200"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -141,7 +140,7 @@ export function SearchBar() {
           type="button"
           onClick={handleClose}
           aria-label="Cerrar búsqueda"
-          className="shrink-0 p-2.5 rounded-full text-[--color-text-muted] hover:text-[--color-text-primary] hover:bg-white/5 transition-colors"
+          className="shrink-0 p-2.5 rounded-full text-[--color-text-muted] hover:text-[--color-text-primary] hover:bg-white/10 transition-all duration-200"
         >
           <X className="h-5 w-5" />
         </button>
