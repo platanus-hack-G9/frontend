@@ -1,5 +1,4 @@
 // Export all modular components
-export { LayerSelector, type LayerType } from './LayerSelector';
 export { WelcomeOverlay } from './WelcomeOverlay';
 export { NodeTooltip, type TooltipData } from './NodeTooltip';
 export { ZoomControls } from './ZoomControls';
